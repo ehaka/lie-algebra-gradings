@@ -1,0 +1,6 @@
+*.pyc
+__pycache__
+*.sage.py
+.project
+.pydevproject
+test.log
