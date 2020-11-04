@@ -1,6 +1,6 @@
 # Lie algebra gradings
 
-This is a companion repository to the paper Gradings for nilpotent Lie algebras by Eero Hakavuori, Ville Kivioja, Terhi Moisala, and Francesca Tripaldi. The repository contains an implementation of the computation of stratifications, maximal gradings, and the enumeration of gradings for Lie algebras. It also includes a study of gradings for the nilpotent Lie algebra classifications of Cicalò-de Graaf-Schneider up to dimension 6 and Gong for dimension 7.
+This is a companion repository to the paper Gradings for nilpotent Lie algebras by Eero Hakavuori, Ville Kivioja, Terhi Moisala, and Francesca Tripaldi. The repository contains an implementation of the construction of stratifications, maximal gradings, and the enumeration of gradings for Lie algebras. It also includes a study of gradings for the nilpotent Lie algebra classifications of Cicalò-de Graaf-Schneider up to dimension 6 and Gong for dimension 7.
 
 ## Usage
 
@@ -93,9 +93,9 @@ The documentation of the various functions can be accessed with the syntax
 sage: maximal_grading?
 ```
 
-## Data for nilpotent Lie algebras of dimension up to 7
+## Data for nilpotent Lie algebras up to dimension 7
 
-A listing of isomorphism classes of gradings for dimension up to 7 can be found in the `dim7/data` subfolder, along with the code used to construct the data in the `dim7` subfolder. Up to dimension 6 the data is a complete listing of all possible torsion-free gradings based on the classification of nilpotent Lie algebras up to dimension 6 by Cicalò-de Graaf-Schneider. In dimension 7, the data is a complete listing apart from the uncountable number of one-parameter families of Lie algebras, based on the classification of nilpotent Lie algebras in dimension 7 by Gong.
+A listing of isomorphism classes of gradings for dimension up to 7 can be found in the `dim7/data` subfolder, along with the code used to construct the data in the `dim7` subfolder. Up to dimension 6 the data is a complete listing of all possible torsion-free gradings based on the classification of nilpotent Lie algebras up to dimension 6 by Cicalò-de Graaf-Schneider. In dimension 7, the data is a complete listing apart from the one-parameter families containing an uncountable number of Lie algebras, based on the classification of nilpotent Lie algebras in dimension 7 by Gong.
 
 The gradings can be explored in html format within the files under `dim7/data/html` and various text format overviews are available in `dim7/data`.
 
