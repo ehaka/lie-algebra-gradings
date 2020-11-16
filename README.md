@@ -1,6 +1,6 @@
 # Lie algebra gradings
 
-This is a companion repository to the paper Gradings for nilpotent Lie algebras by Eero Hakavuori, Ville Kivioja, Terhi Moisala, and Francesca Tripaldi. The repository contains an implementation of the construction of stratifications, maximal gradings, and the enumeration of gradings for Lie algebras. It also includes a study of gradings for the nilpotent Lie algebra classifications of Cicalò-de Graaf-Schneider up to dimension 6 and Gong for dimension 7.
+This is a companion repository to the paper [Gradings for nilpotent Lie algebras](https://arxiv.org/abs/2011.06871) by Eero Hakavuori, Ville Kivioja, Terhi Moisala, and Francesca Tripaldi. The repository contains an implementation of the construction of stratifications, maximal gradings, and the enumeration of gradings for Lie algebras. It also includes a study of gradings for the nilpotent Lie algebra classifications of Cicalò-de Graaf-Schneider up to dimension 6 and Gong for dimension 7.
 
 ## Usage
 
