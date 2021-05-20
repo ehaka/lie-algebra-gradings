@@ -798,18 +798,30 @@ class LieAlgebraGrading(Parent, UniqueRepresentation):
             ...
             ValueError: grading does not have a realization over positive integers
 
-        Not optimizing the weights often gives a positive realization with
-        significantly larger weights, but the computation can be much quicker::
+        Not optimizing the weights gives a much quicker computation but
+        unnecessarily large weights::
 
             sage: from lie_gradings.gradings.grading import maximal_grading
             sage: L = LieAlgebra(QQ, 3, step=3)
             sage: gr = maximal_grading(L)
-            sage: gr1 = gr.to_positive_grading()
-            sage: sorted(a for a in gr1)
-            [2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17]
-            sage: gr2 = gr.to_positive_grading(optimize_weights=False)
-            sage: sorted(a for a in gr2)
-            [9, 10, 12, 19, 21, 22, 28, 29, 30, 31, 32, 33, 34]
+            sage: gr.to_positive_grading(optimize_weights=False)
+            Grading over Integer Ring of Free Nilpotent Lie algebra
+            on 14 generators (X_1, X_2, X_3, X_12, X_13, X_23,
+            X_112, X_113, X_122, X_123, X_132, X_133, X_223, X_233)
+            over Rational Field with nonzero layers
+              36 : (X_3,)
+              30 : (X_2,)
+              66 : (X_23,)
+              96 : (X_223,)
+              102 : (X_233,)
+              28 : (X_1,)
+              58 : (X_12,)
+              86 : (X_112,)
+              88 : (X_122,)
+              64 : (X_13,)
+              92 : (X_113,)
+              94 : (X_123, X_132)
+              100 : (X_133,)
         """
         ugr = self.universal_realization()
         if ugr.has_positive_realization() != True:
@@ -849,11 +861,12 @@ class LieAlgebraGrading(Parent, UniqueRepresentation):
             abnorm = max(abs(ak) for ak in a - b)
             if abnorm > M:
                 M = abnorm
+        M = M + 1
 
         if optimize_weights:
             # compute a priori bounds for the solution
             N = len(ugr._layers)
-            C = (2 + N * 2 ** N) * M ** K + M ** (K + 1)
+            C = 2 * (1 + N * 2 ** N) * M ** K + M ** (K + 1)
 
             # add constraints for distinct weights
             vvec = [v[k] for k in range(K)]
