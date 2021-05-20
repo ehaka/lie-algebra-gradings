@@ -13,6 +13,7 @@ from sage.misc.cachefunc import cached_method
 from sage.misc.latex import latex
 from sage.modules.free_module import FreeModule, VectorSpace
 from sage.modules.free_module_element import vector
+from sage.numerical.mip import MixedIntegerLinearProgram
 from sage.rings.integer_ring import ZZ
 from sage.rings.rational_field import QQ
 from sage.rings.polynomial.polynomial_ring_constructor import PolynomialRing
@@ -740,24 +741,33 @@ class LieAlgebraGrading(Parent, UniqueRepresentation):
             sage: gr.has_positive_realization()
             True
         """
-        if self._projections:
-            # if there are torsion components, there is no integer realization
-            if any(a != 0 for a in self._A.invariants()):
-                return False
+        try:
+            if self._projections:
+                # if there is torsion, there is no integer realization
+                if any(a != 0 for a in self._A.invariants()):
+                    return False
 
-            # grading is positivisable iff zero is not in the convex hull of weights
-            p = Polyhedron([tuple(a) for a in self])
-            return not (tuple(self._A.zero()) in p)
+                # grading is positivisable iff zero
+                # is not in the convex hull of weights
+                p = Polyhedron([tuple(a) for a in self])
+                return not (tuple(self._A.zero()) in p)
+        except:
+            pass
 
         # if projection property is not known, compute a universal realization
         gr = self.universal_realization()
         return gr.has_positive_realization()
 
     @cached_method
-    def to_positive_grading(self):
+    def to_positive_grading(self, optimize_weights=True):
         r"""
         Return a grading with identical layers, but indexed over the positive
         integers.
+
+        INPUT:
+
+        - ``optimize_weights`` -- (default:``True``) a boolean; if ``True``,
+          the returned positive realization has the smallest possible max weight
 
         EXAMPLES:
 
@@ -787,46 +797,90 @@ class LieAlgebraGrading(Parent, UniqueRepresentation):
             Traceback (most recent call last):
             ...
             ValueError: grading does not have a realization over positive integers
+
+        Not optimizing the weights often gives a positive realization with
+        significantly larger weights, but the computation can be much quicker::
+
+            sage: from lie_gradings.gradings.grading import maximal_grading
+            sage: L = LieAlgebra(QQ, 3, step=3)
+            sage: gr = maximal_grading(L)
+            sage: gr1 = gr.to_positive_grading()
+            sage: sorted(a for a in gr1)
+            [2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17]
+            sage: gr2 = gr.to_positive_grading(optimize_weights=False)
+            sage: sorted(a for a in gr2)
+            [9, 10, 12, 19, 21, 22, 28, 29, 30, 31, 32, 33, 34]
         """
         ugr = self.universal_realization()
         if ugr.has_positive_realization() != True:
              raise ValueError("grading does not have a realization over positive integers")
 
-        # define the space of rays mapping all layers to positive integers
-        p = Polyhedron(ieqs=[[-1] + list(a) for a in ugr])
+        # define a linear problem solver
+        if optimize_weights:
+            p = MixedIntegerLinearProgram(solver="PPL")
+            v = p.new_variable(integer=True)
+            obj = p.new_variable()
+            p.set_objective(-obj[0])
+        else:
+            p = MixedIntegerLinearProgram()
+            v = p.new_variable()
+            p.set_objective(None)
 
-        # define a helper function to project a grading onto a ray
-        def ip(weight, ray):
-            return ZZ(sum(wk * rk for wk, rk in zip(weight, ray)))
+        # define a helper function for inner products
+        def ip(w, a):
+            return sum(wk * ak for wk, ak in zip(w, a))
 
-        # enumerate over projections onto rays in the halfspace intersection
-        k = len(ugr._A.gens())
-        lc = len(ugr._layers)
-        n = 0
-        while True:
-            n += 1
+        # add positivity constraints
+        for a in ugr:
+            tup = tuple(a)
+            constr = sum(ck * v[k] for k, ck in enumerate(tup))
+            p.add_constraint(constr >= 1)
+            if optimize_weights:
+                p.add_constraint(obj[0] >= constr)
+        K = len(tup)
 
-            # test points at L^1-distance n
-            l = []
-            for i in range(k):
-                v = [0] * k
-                v[i] = n
-                l.append(v)
-                v = [0] * k
-                v[i] = -n
-                l.append(v)
-            bound = Polyhedron(l)
-            int_pts = p.intersection(bound).integral_points()
-            for ray in int_pts:
-                if sum(ray) != n:
-                    continue
+        # compute a norm bound for weights and weight differences
+        M = 0
+        for a in ugr:
+            anorm = max(abs(ak) for ak in a)
+            if anorm > M:
+                M = anorm
+        for a, b in combinations(ugr, 2):
+            abnorm = max(abs(ak) for ak in a - b)
+            if abnorm > M:
+                M = abnorm
 
-                projections = [ip(tuple(a), ray) for a in ugr]
-                distinct_count = len(set(projections))
-                if distinct_count == lc and all(a > 0 for a in projections):
-                    # nothing was combined and zero not a weight
-                    newlayers = {pa:ugr[a] for a, pa in zip(ugr, projections)}
-                    return grading(ugr._L, newlayers, magma=ZZ)
+        if optimize_weights:
+            # compute a priori bounds for the solution
+            N = len(ugr._layers)
+            C = (2 + N * 2 ** N) * M ** K + M ** (K + 1)
+
+            # add constraints for distinct weights
+            vvec = [v[k] for k in range(K)]
+            d = p.new_variable(binary=True)
+            for (i, a), (j, b) in combinations(enumerate(ugr), 2):
+                dif = ip(vvec, a - b)
+                p.add_constraint(dif - (C + 1) * d[i, j], min=-C)
+                p.add_constraint(dif - (C + 1) * d[i, j], max=-1)
+
+            # solve the linear problem
+            p.solve()
+            sol = p.get_values(v)
+            w = [ZZ(sol[k]) for k in range(K)]
+        else:
+            # solve and perturb
+            p.solve()
+            sol = p.get_values(v)
+            w = vector(QQ, [QQ(sol[k]) for k in range(K)])
+
+            # expand to an integer solution and rescale
+            scale = 1 / gcd(w)
+            scale = lcm(scale, M ** K)
+            w = scale * w + vector([M ** k for k in range(K)])
+
+        # return the pushforward grading
+        newlayers = {ip(w, a):ugr[a] for a in ugr}
+        return grading(ugr._L, newlayers, magma=ZZ)
 
     @cached_method
     def to_integer_grading(self, require_identical=True):
@@ -894,7 +948,7 @@ class LieAlgebraGrading(Parent, UniqueRepresentation):
         Return a coarsening of the grading indexed over a torsion free group.
 
         EXAMPLES::
-        
+
             sage: from lie_gradings.gradings.lie_algebra_grading import grading
             sage: sc = {('X','Y'): {'Z': 1}, ('X','Z'): {'W': 1}}
             sage: L.<X,Y,Z,W> = LieAlgebra(QQ, sc)
@@ -1052,11 +1106,11 @@ class LieAlgebraGrading(Parent, UniqueRepresentation):
             sage: d[3][1]
             [a3_11]
             sage: I
-            Ideal (s_1*a1_11 - 1, s_2*a2_11 - 1, s_3*a3_11 - 1, 
-            a3_11 + a1_11*a2_11) of Multivariate Polynomial Ring 
+            Ideal (s_1*a1_11 - 1, s_2*a2_11 - 1, s_3*a3_11 - 1,
+            a3_11 + a1_11*a2_11) of Multivariate Polynomial Ring
             in s_1, s_2, s_3, a1_11, a2_11, a3_11 over Rational Field
 
-        Using reduced=``True`` attempts to find a simplified system 
+        Using reduced=``True`` attempts to find a simplified system
         with fewer variables::
 
             sage: d,I = gr1.isomorphism_equations(gr2, weightmap, reduced=True)
@@ -1067,8 +1121,8 @@ class LieAlgebraGrading(Parent, UniqueRepresentation):
             sage: d[3][1]
             [-a1_11*a2_11]
             sage: I
-            Ideal (s_1*a1_11 - 1, s_2*a2_11 - 1, -s_3*a1_11*a2_11 - 1) of 
-            Multivariate Polynomial Ring in s_1, s_2, s_3, a1_11, a2_11 
+            Ideal (s_1*a1_11 - 1, s_2*a2_11 - 1, -s_3*a1_11*a2_11 - 1) of
+            Multivariate Polynomial Ring in s_1, s_2, s_3, a1_11, a2_11
             over Rational Field
 
         If the layer dimensions do not match an error is raised::
