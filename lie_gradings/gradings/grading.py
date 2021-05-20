@@ -85,7 +85,6 @@ def maximal_grading(L):
 
     # iteratively construct larger and larger tori of derivations
     t = []
-    common_eigenspaces = [([], FreeModule(R, n))]
     while True:
         # compute the centralizer of the torus in the derivation algebra
         ker = FreeModule(R, len(db))
@@ -94,67 +93,24 @@ def maximal_grading(L):
             # the images of basis derivations
             A = matrix([matrix_to_vec(der * X - X * der) for X in db])
             ker = ker.intersection(A.left_kernel())
-
-        # embed the quotient of the centralizer by the previous torus
-        # in the matrix space of maps preserving the common eigenspaces
         cb = [derivation_lincomb(v) for v in ker.basis()]
-        ad_cb_flat = []
+
+        # check the basis of the centralizer for semisimple parts outside of t
+        gl = FreeModule(R, n * n)
+        t_submodule = gl.submodule([matrix_to_vec(der) for der in t])
         for A in cb:
-            A_components_flat = []
-            for ev, V in common_eigenspaces:
-                # compute (transpose of) matrix of A restricted to V
-                rows = [V.coordinate_vector(A * v) for v in V.basis()]
-                AV = matrix(R, rows, sparse=True)
-
-                # compute the adjoint of A in End(V)
-                m = V.dimension()
-                MS_V = MatrixSpace(R, m, m, sparse=True)
-                adAV = matrix(R, [matrix_to_vec(AV * B - B * AV)
-                                  for B in MS_V.basis()])
-                A_components_flat.extend(matrix_to_vec(adAV))
-            ad_cb_flat.append(A_components_flat)
-
-        # check kernel of ad for new elements
-        ker = matrix(ad_cb_flat, sparse=True).left_kernel()
-        if ker.dimension() > len(t):
-            m = FreeModule(R, n * n)
-            cb_vecs = [matrix_to_vec(A) for A in cb]
-            m_cb = m.submodule_with_basis(cb_vecs)
-            m_t = m.submodule([matrix_to_vec(A) for A in t])
-            q = m_cb.quotient(m_t)
-            for v in ker.basis():
-                A = sum((vk * Ak for vk, Ak in zip(v, cb)), MS.zero())
-                if q(m_cb(matrix_to_vec(A))):
-                    break
+            As, An = jordan_decomposition(A)
+            if matrix_to_vec(As) not in t_submodule:
+                # extend the torus by As
+                t.append(As)
+                break
         else:
-            # ker ad = t, so it suffices to check the basis and sums of basis
-            # elements for semisimple parts outside of t
-            
-            gl = FreeModule(R, n*n)
-            t_submodule = gl.submodule([matrix_to_vec(der) for der in t])
+            # no new elements found, so the torus is maximal
+            break
 
-            # loop over the basis
-            for A in cb:
-                As, An = jordan_decomposition(A)
-                if matrix_to_vec(As) not in t_submodule:
-                    # extend the torus by As
-                    A = As
-                    break
-            else:
-                # loop over sums of the basis
-                for A, B in combinations(cb, 2):
-                    As, An = jordan_decomposition(A+B)
-                    if matrix_to_vec(As) not in t_submodule:
-                        # extend the torus by As
-                        A = As
-                        break
-                else:
-                    # no new elements found, so the torus is maximal
-                    break
-
-        t.append(A)
-
-        # compute refinement of common eigenspaces
+    # compute the eigenspace intersections to get the concrete grading
+    common_eigenspaces = [([], FreeModule(R, n))]
+    for A in t:
         new_eigenspaces = []
         eig = A.right_eigenspaces()
         for ev, V in common_eigenspaces:
@@ -234,7 +190,7 @@ def torsion_free_gradings(L):
     maxgrading = maximal_grading(L)
     V = FreeModule(ZZ, len(maxgrading.magma().gens()))
     weights = maxgrading.layers().keys()
-    
+
     # The torsion-free gradings are enumerated by torsion-free quotients
     # of the grading group of the maximal grading.
     diffset = set([tuple(b - a) for a, b in combinations(weights, 2)])
@@ -244,23 +200,23 @@ def torsion_free_gradings(L):
             W = V.submodule(B)
             if W not in subspaces:
                 subspaces.append(W)
-    
+
     # for each subspace, define the quotient grading
     projected_gradings = []
     for W in subspaces:
         Q = V.quotient(W)
-        
+
         # check if quotient is not torsion-free
-        if any(qi>0 for qi in Q.invariants()):
+        if any(qi > 0 for qi in Q.invariants()):
             continue
-            
+
         quot_layers = {}
         for n in weights:
             pi_n = tuple(Q(V(tuple(n))))
             if pi_n not in quot_layers:
                 quot_layers[pi_n] = []
             quot_layers[pi_n].extend(maxgrading.layers()[n])
-    
+
         # expand away denominators to get an integer vector grading
         A = AdditiveAbelianGroup(Q.invariants())
         denoms = [pi_n_k.denominator() for pi_n in quot_layers
