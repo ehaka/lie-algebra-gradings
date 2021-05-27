@@ -866,7 +866,7 @@ class LieAlgebraGrading(Parent, UniqueRepresentation):
         if optimize_weights:
             # compute a priori bounds for the solution
             N = len(ugr._layers)
-            C = 2 * (1 + N * 2 ** N) * M ** K + M ** (K + 1)
+            C = (3 + N * 2 ** (N+1)) * M ** K
 
             # add constraints for distinct weights
             vvec = [v[k] for k in range(K)]
