@@ -866,7 +866,7 @@ class LieAlgebraGrading(Parent, UniqueRepresentation):
         if optimize_weights:
             # compute a priori bounds for the solution
             N = len(ugr._layers)
-            C = (3 + N * 2 ** (N+1)) * M ** K
+            C = (3 + N * 2 ** (N + 1)) * M ** K
 
             # add constraints for distinct weights
             vvec = [v[k] for k in range(K)]
@@ -917,10 +917,10 @@ class LieAlgebraGrading(Parent, UniqueRepresentation):
             sage: gr.to_integer_grading()
             Grading over Integer Ring of Lie algebra on 4 generators
             (X, Y, Z, W) over Rational Field with nonzero layers
-              1 : (X,)
-              2 : (Y,)
-              3 : (Z,)
-              4 : (W,)
+              1 : (W,)
+              2 : (X,)
+              3 : (Y,)
+              5 : (Z,)
         """
         if self._A == ZZ:
             return self
@@ -1024,6 +1024,19 @@ class LieAlgebraGrading(Parent, UniqueRepresentation):
               (1, 0) : (X,)
               (1, 1) : (Z,)
 
+        A universal realization may have less additive relations between
+        weights than the original grading::
+            sage: layers = {1: [X], 2: [Y], 3: [Z], 4: [W]}
+            sage: gr = grading(L, layers, magma=ZZ)
+            sage: gr.universal_realization()
+            Grading over Additive abelian group isomorphic to Z + Z
+            of Lie algebra on 4 generators (X, Y, Z, W) over Rational Field
+            with nonzero layers
+              (1, 0) : (X,)
+              (0, 1) : (Y,)
+              (1, 1) : (Z,)
+              (2, 1) : (W,)
+
         The grading must be defined over an additive abelian group::
 
             sage: L.<X,Y,Z> = LieAlgebra(QQ, {('X','Y'): {'Z': 1}})
@@ -1040,21 +1053,34 @@ class LieAlgebraGrading(Parent, UniqueRepresentation):
         if self._A not in CommutativeAdditiveGroups():
             raise ValueError("the grading must be defined over an additive abelian group")
 
-        # form a linear system over Z of the relations between the weights
+        # form a linear system over Z of the required relations between weights
         # reversing the list leads to a cleaner quotient
         weights = list(reversed([a for a in self]))
         V = FreeModule(ZZ, len(weights))
         relations = []
         for i, j in combinations_with_replacement(range(len(weights)), 2):
-            c = weights[i] + weights[j]
-            if c in self:
-                # add relation
-                h = weights.index(c)
-                rel = [0] * len(weights)
-                rel[i] += 1
-                rel[j] += 1
-                rel[h] -= 1
-                relations.append(V(rel))
+            a = weights[i]
+            b = weights[j]
+            c = a + b
+            if c not in self:
+                continue
+
+            # if a+b is a weight, check if there are nonzero brackets
+            if a == b:
+                pairs = combinations(self[a], 2)
+            else:
+                pairs = product(self[a], self[b])
+            for X, Y in pairs:
+                Z = X.bracket(Y)
+                if Z:
+                    # add relation
+                    h = weights.index(c)
+                    rel = [0] * len(weights)
+                    rel[i] += 1
+                    rel[j] += 1
+                    rel[h] -= 1
+                    relations.append(V(rel))
+                    break
 
         # quotient out by the relations to get a well defined grading
         Q = V.quotient(relations)
